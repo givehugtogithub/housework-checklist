@@ -48,3 +48,59 @@ test('createStore: getTally excludes uncolored cells', () => {
   const store = createStore(['A'], [1, 2]);
   assert.deepEqual(store.getTally(), {});
 });
+
+test('addChore: adds a new row with empty cells', () => {
+  const store = createStore(['洗碗'], [1, 2]);
+  const result = store.addChore('倒垃圾');
+  assert.deepEqual(result, { ok: true });
+  assert.deepEqual(store.getChores(), ['洗碗', '倒垃圾']);
+  assert.equal(store.getColor('倒垃圾', 1), null);
+  assert.equal(store.getColor('倒垃圾', 2), null);
+});
+
+test('addChore: trims whitespace and rejects an empty name', () => {
+  const store = createStore(['洗碗'], [1]);
+  assert.deepEqual(store.addChore('   '), { ok: false, reason: 'empty' });
+  assert.deepEqual(store.getChores(), ['洗碗']);
+});
+
+test('addChore: rejects a duplicate name', () => {
+  const store = createStore(['洗碗'], [1]);
+  assert.deepEqual(store.addChore('洗碗'), { ok: false, reason: 'duplicate' });
+  assert.deepEqual(store.getChores(), ['洗碗']);
+});
+
+test('removeChore: removes the row and its cell data, leaves other rows untouched', () => {
+  const store = createStore(['洗碗', '倒垃圾'], [1, 2]);
+  store.click('洗碗', 1, 'blue');
+  store.click('倒垃圾', 1, 'pink');
+  store.removeChore('洗碗');
+  assert.deepEqual(store.getChores(), ['倒垃圾']);
+  assert.equal(store.getColor('洗碗', 1), null);
+  assert.equal(store.getColor('倒垃圾', 1), 'pink');
+});
+
+test('renameChore: keeps the existing cell data under the new name', () => {
+  const store = createStore(['洗碗', '倒垃圾'], [1, 2]);
+  store.click('洗碗', 1, 'blue');
+  const result = store.renameChore('洗碗', '洗碗盤');
+  assert.deepEqual(result, { ok: true });
+  assert.deepEqual(store.getChores(), ['洗碗盤', '倒垃圾']);
+  assert.equal(store.getColor('洗碗盤', 1), 'blue');
+  assert.equal(store.getColor('洗碗', 1), null);
+  assert.equal(store.getColor('倒垃圾', 1), null);
+});
+
+test('renameChore: rejects renaming to an existing name, leaves it unchanged', () => {
+  const store = createStore(['洗碗', '倒垃圾'], [1]);
+  const result = store.renameChore('洗碗', '倒垃圾');
+  assert.deepEqual(result, { ok: false, reason: 'duplicate' });
+  assert.deepEqual(store.getChores(), ['洗碗', '倒垃圾']);
+});
+
+test('renameChore: rejects an empty new name, leaves it unchanged', () => {
+  const store = createStore(['洗碗'], [1]);
+  const result = store.renameChore('洗碗', '   ');
+  assert.deepEqual(result, { ok: false, reason: 'empty' });
+  assert.deepEqual(store.getChores(), ['洗碗']);
+});

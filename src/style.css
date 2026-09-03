@@ -98,3 +98,75 @@ h1 {
   margin-top: 1rem;
   font-weight: 600;
 }
+
+.chore-name {
+  display: table-cell;
+}
+
+.chore-name-text {
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  border-radius: 0.25rem;
+}
+
+.chore-name-text:hover {
+  background: #f3f4f6;
+}
+
+.delete-chore-button {
+  margin-left: 0.4rem;
+  border: none;
+  background: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+}
+
+.delete-chore-button:hover {
+  color: #ef4444;
+}
+
+.chore-rename-input,
+.add-chore-input {
+  font-size: 0.85rem;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  font-family: inherit;
+}
+
+.chore-name-error,
+.add-chore-error {
+  color: #ef4444;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.chore-name-error {
+  margin-top: 0.2rem;
+}
+
+.add-chore-error {
+  margin-left: 0.5rem;
+}
+
+.add-chore-row th {
+  padding-top: 0.5rem;
+}
+
+.add-chore-form {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.add-chore-form button {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--bg);
+  cursor: pointer;
+}
