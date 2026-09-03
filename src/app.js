@@ -1,23 +1,36 @@
 import { createStore } from './store.js';
+import { createSupabaseClient } from './supabase-client.js';
+import { createAdapter } from './supabase-adapter.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-config.js';
 
-const CHORES = [
+const DEFAULT_CHORES = [
   '接米花上學', '倒廚餘', '尿布桶', '倒垃圾', '倒回收',
   '洗衣服', '晾衣服', '折衣服', '接小孩放學', '煮飯',
   '洗碗', '整理書包', '米花洗澡', '米花刷牙', '洗廁所',
 ];
-
-const YEAR = 2026;
-const MONTH = 9; // September
-const DAYS_IN_MONTH = new Date(YEAR, MONTH, 0).getDate();
-const DAYS = Array.from({ length: DAYS_IN_MONTH }, (_, i) => i + 1);
 
 const PEOPLE = [
   { color: 'blue', label: 'Sean' },
   { color: 'pink', label: 'Vera' },
 ];
 
-const store = createStore(CHORES, DAYS);
+let adapter = null;
+let store;
 let activeColor = null;
+let year;
+let month;
+
+function daysInMonth(y, m) {
+  return new Date(y, m, 0).getDate();
+}
+
+function daysArray(y, m) {
+  return Array.from({ length: daysInMonth(y, m) }, (_, i) => i + 1);
+}
+
+function weekdayLabel(day) {
+  return new Date(year, month - 1, day).toLocaleDateString('zh-TW', { weekday: 'short' });
+}
 
 function showDuplicateChoreError(container, className, tag) {
   let error = container.querySelector(`.${className}`);
@@ -27,10 +40,6 @@ function showDuplicateChoreError(container, className, tag) {
     container.appendChild(error);
   }
   error.textContent = '這個家事已經存在';
-}
-
-function weekdayLabel(day) {
-  return new Date(YEAR, MONTH - 1, day).toLocaleDateString('zh-TW', { weekday: 'short' });
 }
 
 function setupColorPicker() {
@@ -54,12 +63,22 @@ function renderColorPicker() {
   });
 }
 
+function setupMonthSwitcher() {
+  document.querySelector('#prev-month').addEventListener('click', () => switchMonth(-1));
+  document.querySelector('#next-month').addEventListener('click', () => switchMonth(1));
+}
+
+function renderMonthLabel() {
+  document.querySelector('#month-label').textContent = `${year} 年 ${month} 月`;
+}
+
 function renderHeader() {
   const headRow = document.querySelector('#grid thead tr');
+  headRow.innerHTML = '';
   const corner = document.createElement('th');
   corner.textContent = '家事項目';
   headRow.appendChild(corner);
-  for (const day of DAYS) {
+  for (const day of daysArray(year, month)) {
     const th = document.createElement('th');
     th.innerHTML = `${day}<br>${weekdayLabel(day)}`;
     headRow.appendChild(th);
@@ -81,7 +100,7 @@ function renderChoreRow(chore) {
   th.className = 'chore-name';
   renderChoreNameCell(th, chore);
   row.appendChild(th);
-  for (const day of DAYS) {
+  for (const day of daysArray(year, month)) {
     const td = document.createElement('td');
     td.dataset.chore = chore;
     td.dataset.day = String(day);
@@ -110,7 +129,7 @@ function renderChoreNameCell(th, chore) {
   deleteButton.textContent = '×';
   deleteButton.setAttribute('aria-label', `刪除「${chore}」`);
   deleteButton.addEventListener('click', () => {
-    const confirmed = window.confirm(`確定要刪除「${chore}」嗎？這個月的打勾記錄也會一起消失。`);
+    const confirmed = window.confirm(`確定要刪除「${chore}」嗎？這個家事所有月份的打勾記錄也會一起消失。`);
     if (!confirmed) return;
     store.removeChore(chore);
     renderGrid();
@@ -204,7 +223,7 @@ function renderAddChoreRow() {
   row.appendChild(th);
 
   const td = document.createElement('td');
-  td.colSpan = DAYS.length;
+  td.colSpan = daysInMonth(year, month);
   row.appendChild(td);
 
   return row;
@@ -221,7 +240,85 @@ function renderTally() {
   document.querySelector('#tally').textContent = parts.join('、');
 }
 
-setupColorPicker();
-renderHeader();
-renderGrid();
-renderTally();
+function renderAll() {
+  renderMonthLabel();
+  renderHeader();
+  renderGrid();
+  renderTally();
+}
+
+async function loadInitialChores() {
+  if (!adapter) return [...DEFAULT_CHORES];
+  try {
+    const names = await adapter.loadChores();
+    if (names.length > 0) return names;
+    await adapter.seedChores(DEFAULT_CHORES);
+    return [...DEFAULT_CHORES];
+  } catch (err) {
+    console.error('讀取家事清單失敗，改用本地預設清單', err);
+    return [...DEFAULT_CHORES];
+  }
+}
+
+async function loadInitialCells() {
+  if (!adapter) return [];
+  try {
+    return await adapter.loadCells(year, month);
+  } catch (err) {
+    console.error('讀取格子紀錄失敗，本月將顯示空白', err);
+    return [];
+  }
+}
+
+async function buildStoreForMonth(chores) {
+  const initialCells = await loadInitialCells();
+  store = createStore(chores, daysArray(year, month), {
+    adapter,
+    initialCells,
+    year,
+    month,
+  });
+}
+
+async function switchMonth(delta) {
+  const currentChores = store.getChores();
+  month += delta;
+  if (month < 1) {
+    month = 12;
+    year -= 1;
+  } else if (month > 12) {
+    month = 1;
+    year += 1;
+  }
+  await buildStoreForMonth(currentChores);
+  renderAll();
+}
+
+function setupAdapter() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.warn('尚未設定 Supabase（src/supabase-config.js），以本地模式執行，重新整理後資料不會保留。');
+    return;
+  }
+  try {
+    const client = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    adapter = createAdapter(client);
+  } catch (err) {
+    console.error('Supabase client 初始化失敗，以本地模式執行', err);
+  }
+}
+
+async function init() {
+  const today = new Date();
+  year = today.getFullYear();
+  month = today.getMonth() + 1;
+
+  setupAdapter();
+  const chores = await loadInitialChores();
+  await buildStoreForMonth(chores);
+
+  setupColorPicker();
+  setupMonthSwitcher();
+  renderAll();
+}
+
+init();

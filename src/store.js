@@ -4,7 +4,8 @@ export function nextCellColor(currentColor, activeColor) {
   return activeColor;
 }
 
-export function createStore(chores, days) {
+export function createStore(chores, days, options = {}) {
+  const { adapter, initialCells, year, month } = options;
   const cells = new Map();
   const choreList = [];
 
@@ -19,6 +20,12 @@ export function createStore(chores, days) {
     seedChoreCells(chore);
   }
 
+  if (initialCells) {
+    for (const { chore, day, color } of initialCells) {
+      cells.set(cellKey(chore, day), color);
+    }
+  }
+
   return {
     getChores() {
       return [...choreList];
@@ -30,6 +37,7 @@ export function createStore(chores, days) {
       const key = cellKey(chore, day);
       const next = nextCellColor(cells.get(key) ?? null, activeColor);
       cells.set(key, next);
+      adapter?.pushCell(chore, year, month, day, next);
       return next;
     },
     getTally() {
@@ -46,6 +54,7 @@ export function createStore(chores, days) {
       if (choreList.includes(trimmed)) return { ok: false, reason: 'duplicate' };
       choreList.push(trimmed);
       seedChoreCells(trimmed);
+      adapter?.pushChoreAdd(trimmed);
       return { ok: true };
     },
     removeChore(name) {
@@ -55,6 +64,7 @@ export function createStore(chores, days) {
       for (const day of days) {
         cells.delete(cellKey(name, day));
       }
+      adapter?.pushChoreRemove(name);
     },
     renameChore(oldName, newName) {
       const trimmed = newName.trim();
@@ -70,6 +80,7 @@ export function createStore(chores, days) {
         cells.delete(oldKey);
         cells.set(cellKey(trimmed, day), value);
       }
+      adapter?.pushChoreRename(oldName, trimmed);
       return { ok: true };
     },
   };
