@@ -4,9 +4,9 @@ import { createAdapter } from './supabase-adapter.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-config.js';
 
 const DEFAULT_CHORES = [
-  '接米花上學', '倒廚餘', '尿布桶', '倒垃圾', '倒回收',
-  '洗衣服', '晾衣服', '折衣服', '接小孩放學', '煮飯',
-  '洗碗', '整理書包', '米花洗澡', '米花刷牙', '洗廁所',
+  '接孩子上學', '倒廚餘', '尿布桶', '倒垃圾', '倒回收',
+  '洗衣服', '晾衣服', '折衣服', '接孩子放學', '煮飯',
+  '洗碗', '整理書包', '孩子洗澡', '孩子刷牙', '洗廁所',
 ];
 
 const PEOPLE = [
