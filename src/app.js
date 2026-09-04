@@ -19,6 +19,9 @@ let store;
 let activeColor = null;
 let year;
 let month;
+let todayYear;
+let todayMonth;
+let todayDay;
 
 function daysInMonth(y, m) {
   return new Date(y, m, 0).getDate();
@@ -30,6 +33,10 @@ function daysArray(y, m) {
 
 function weekdayLabel(day) {
   return new Date(year, month - 1, day).toLocaleDateString('zh-TW', { weekday: 'short' });
+}
+
+function isToday(day) {
+  return year === todayYear && month === todayMonth && day === todayDay;
 }
 
 function showDuplicateChoreError(container, className, tag) {
@@ -81,8 +88,18 @@ function renderHeader() {
   for (const day of daysArray(year, month)) {
     const th = document.createElement('th');
     th.innerHTML = `${day}<br>${weekdayLabel(day)}`;
+    if (isToday(day)) th.classList.add('today');
     headRow.appendChild(th);
   }
+}
+
+function scrollToToday() {
+  if (year !== todayYear || month !== todayMonth) return;
+  const wrapper = document.querySelector('.grid-wrapper');
+  const stickyHeader = document.querySelector('#grid thead th:first-child');
+  const todayHeader = document.querySelector('#grid thead th.today');
+  if (!wrapper || !stickyHeader || !todayHeader) return;
+  wrapper.scrollLeft = todayHeader.offsetLeft - stickyHeader.getBoundingClientRect().width;
 }
 
 function renderGrid() {
@@ -126,7 +143,8 @@ function renderChoreNameCell(th, chore) {
   const deleteButton = document.createElement('button');
   deleteButton.type = 'button';
   deleteButton.className = 'delete-chore-button';
-  deleteButton.textContent = '×';
+  deleteButton.innerHTML =
+    '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"></path></svg>';
   deleteButton.setAttribute('aria-label', `刪除「${chore}」`);
   deleteButton.addEventListener('click', () => {
     const confirmed = window.confirm(`確定要刪除「${chore}」嗎？這個家事所有月份的打勾記錄也會一起消失。`);
@@ -188,14 +206,21 @@ function renderAddChoreRow() {
   const form = document.createElement('form');
   form.className = 'add-chore-form';
 
+  const label = document.createElement('label');
+  label.className = 'sr-only';
+  label.htmlFor = 'add-chore-input';
+  label.textContent = '新增家事名稱';
+
   const input = document.createElement('input');
   input.type = 'text';
+  input.id = 'add-chore-input';
   input.className = 'add-chore-input';
   input.placeholder = '新增家事…';
 
   const submitButton = document.createElement('button');
   submitButton.type = 'submit';
-  submitButton.textContent = '新增';
+  submitButton.innerHTML =
+    '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M228,128a12,12,0,0,1-12,12H140v76a12,12,0,0,1-24,0V140H40a12,12,0,0,1,0-24h76V40a12,12,0,0,1,24,0v76h76A12,12,0,0,1,228,128Z"></path></svg><span>新增</span>';
 
   input.addEventListener('input', () => {
     form.querySelector('.add-chore-error')?.remove();
@@ -217,6 +242,7 @@ function renderAddChoreRow() {
     input.value = '';
   });
 
+  form.appendChild(label);
   form.appendChild(input);
   form.appendChild(submitButton);
   th.appendChild(form);
@@ -311,6 +337,9 @@ async function init() {
   const today = new Date();
   year = today.getFullYear();
   month = today.getMonth() + 1;
+  todayYear = year;
+  todayMonth = month;
+  todayDay = today.getDate();
 
   setupAdapter();
   const chores = await loadInitialChores();
@@ -319,6 +348,7 @@ async function init() {
   setupColorPicker();
   setupMonthSwitcher();
   renderAll();
+  scrollToToday();
 }
 
 init();
