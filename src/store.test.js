@@ -11,14 +11,20 @@ test('nextCellColor: same color clicked again → cleared', () => {
   assert.equal(nextCellColor('blue', 'blue'), null);
 });
 
-test('nextCellColor: different color clicked → overwritten', () => {
-  assert.equal(nextCellColor('blue', 'pink'), 'pink');
-  assert.equal(nextCellColor('pink', 'blue'), 'blue');
-});
-
 test('nextCellColor: no active color selected → no-op', () => {
   assert.equal(nextCellColor('blue', null), 'blue');
   assert.equal(nextCellColor(null, null), null);
+  assert.equal(nextCellColor('both', null), 'both');
+});
+
+test('nextCellColor: only the other color, clicking own color → shared mark', () => {
+  assert.equal(nextCellColor('pink', 'blue'), 'both');
+  assert.equal(nextCellColor('blue', 'pink'), 'both');
+});
+
+test('nextCellColor: shared mark, clicking own color → leaves only the other color', () => {
+  assert.equal(nextCellColor('both', 'blue'), 'pink');
+  assert.equal(nextCellColor('both', 'pink'), 'blue');
 });
 
 test('createStore: click sets only the targeted cell', () => {
@@ -47,6 +53,26 @@ test('createStore: getTally counts cells by color across the whole grid', () => 
 test('createStore: getTally excludes uncolored cells', () => {
   const store = createStore(['A'], [1, 2]);
   assert.deepEqual(store.getTally(), {});
+});
+
+test('createStore: getTally counts a shared-mark cell once for each person', () => {
+  const store = createStore(['A', 'B'], [1, 2]);
+  store.click('A', 1, 'blue');
+  store.click('A', 1, 'pink');
+  store.click('B', 2, 'pink');
+  assert.deepEqual(store.getTally(), { blue: 1, pink: 2 });
+});
+
+test('createStore: click builds up to and tears down a shared mark', () => {
+  const store = createStore(['洗碗'], [1]);
+  store.click('洗碗', 1, 'blue');
+  assert.equal(store.getColor('洗碗', 1), 'blue');
+  store.click('洗碗', 1, 'pink');
+  assert.equal(store.getColor('洗碗', 1), 'both');
+  store.click('洗碗', 1, 'blue');
+  assert.equal(store.getColor('洗碗', 1), 'pink');
+  store.click('洗碗', 1, 'pink');
+  assert.equal(store.getColor('洗碗', 1), null);
 });
 
 test('addChore: adds a new row with empty cells', () => {

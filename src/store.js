@@ -1,7 +1,19 @@
 export function nextCellColor(currentColor, activeColor) {
   if (activeColor == null) return currentColor;
+  if (currentColor == null) return activeColor;
   if (currentColor === activeColor) return null;
-  return activeColor;
+  if (currentColor === 'both') return otherColor(activeColor);
+  return 'both';
+}
+
+function otherColor(color) {
+  return color === 'blue' ? 'pink' : 'blue';
+}
+
+function colorsOf(value) {
+  if (value == null) return [];
+  if (value === 'both') return ['blue', 'pink'];
+  return [value];
 }
 
 export function createStore(chores, days, options = {}) {
@@ -42,9 +54,10 @@ export function createStore(chores, days, options = {}) {
     },
     getTally() {
       const tally = {};
-      for (const color of cells.values()) {
-        if (color == null) continue;
-        tally[color] = (tally[color] ?? 0) + 1;
+      for (const value of cells.values()) {
+        for (const color of colorsOf(value)) {
+          tally[color] = (tally[color] ?? 0) + 1;
+        }
       }
       return tally;
     },
