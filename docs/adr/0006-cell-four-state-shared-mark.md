@@ -4,6 +4,8 @@
 
 沒有拆 schema：`cells` 表維持單一 `color` 欄位、整格覆蓋寫入（見 [ADR-0004](0004-supabase-sync-fire-and-forget.md)），`both` 只是這個欄位的第三種合法字串值，不是拆成兩個布林欄位（`sean_marked`/`vera_marked`）之類的正規化設計。拆 schema 能更精確地表達「兩個獨立的人分別標記」，但這個 app 從頭到尾只有兩個使用者、顏色集合固定不變，正規化換來的彈性目前用不上，反而要動 Supabase 表結構、`supabase-adapter.js` 的讀寫合約、和既有的 fake-adapter 測試模式；維持單欄位字串，新值只是多一種，`pushCell` 完全不用改。
 
+「不拆 schema」不代表資料庫端完全不用動：`cells.color` 原本有一條 `check (color in ('blue', 'pink'))` 的限制式（見 [docs/setup-supabase.md](../setup-supabase.md)），只允許兩種值。這條限制式也是 schema 的一部分，只是不涉及拆表/拆欄位，所以第一版實作時漏了改——結果是 `both` 寫入時被 Postgres 拒絕，而 `pushCell` 是 fire-and-forget（失敗只 `console.error`，見 ADR-0004），畫面上看起來標記成功，重新整理後才會發現又變回單色。既有專案要手動跑 migration 把限制式改成 `check (color in ('blue', 'pink', 'both'))`，步驟見 setup-supabase.md 的「既有專案升級」一節。
+
 視覺呈現用兩個 `::before`/`::after` 偽元素各自 `clip-path: polygon(...)` 切出左上、右下兩個三角形，而不是用 `linear-gradient(to bottom right, ...)` 硬切兩色。原本試過 gradient 版本：畫面上（40×36px 的格子，接近但不是正方形）目視沒問題，但推導過才發現這個技巧只有在格子是正方形時，兩個色塊的分界線才會精確落在另一條對角線的兩個角上——長寬比不同時，`to bottom right` 的漸層方向其實跟著主對角線走，中點處垂直切出的分界線只有正方形才會剛好垂直於另一條對角線，長方形會讓分界線偏離角落幾個像素，格子越扁、偏移越明顯。`clip-path` 的多邊形座標是 x/y 各自獨立算百分比，跟格子長寬比無關，兩個三角形的頂點永遠精確落在四個角上，才真的符合「固定 Sean 左上、Vera 右下」的三角形要求。兩個三角形各自把跟分隔線相鄰的角往內收 2px，露出底色（`--cell-divider`）當作分隔線。
 
 ## Consequences
