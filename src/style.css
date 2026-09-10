@@ -236,9 +236,22 @@ h1 {
 }
 
 .tally {
+  display: none;
   margin-top: 1.25rem;
   font-weight: 600;
   color: var(--text);
+}
+
+.count-column {
+  display: none;
+}
+
+body.counts-visible .tally {
+  display: block;
+}
+
+body.counts-visible .count-column {
+  display: table-cell;
 }
 
 .chore-name {

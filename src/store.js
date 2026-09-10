@@ -10,10 +10,32 @@ function otherColor(color) {
   return color === 'blue' ? 'pink' : 'blue';
 }
 
+export function nextCountsVisibility(state, now) {
+  const { count, visible, lastClickAt } = state;
+  const isNewSequence = lastClickAt == null || now - lastClickAt > 5000;
+  let nextCount = isNewSequence ? 1 : count + 1;
+  let nextVisible = visible;
+  if (nextCount === 5) {
+    nextVisible = !visible;
+    nextCount = 0;
+  }
+  return { count: nextCount, visible: nextVisible, lastClickAt: now };
+}
+
 function colorsOf(value) {
   if (value == null) return [];
   if (value === 'both') return ['blue', 'pink'];
   return [value];
+}
+
+function accumulateColors(values) {
+  const count = {};
+  for (const value of values) {
+    for (const color of colorsOf(value)) {
+      count[color] = (count[color] ?? 0) + 1;
+    }
+  }
+  return count;
 }
 
 export function createStore(chores, days, options = {}) {
@@ -53,13 +75,10 @@ export function createStore(chores, days, options = {}) {
       return next;
     },
     getTally() {
-      const tally = {};
-      for (const value of cells.values()) {
-        for (const color of colorsOf(value)) {
-          tally[color] = (tally[color] ?? 0) + 1;
-        }
-      }
-      return tally;
+      return accumulateColors(cells.values());
+    },
+    getChoreCount(chore) {
+      return accumulateColors(days.map((day) => cells.get(cellKey(chore, day))));
     },
     addChore(name) {
       const trimmed = name.trim();
