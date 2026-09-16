@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextCellColor, createStore } from './store.js';
+import { nextCellColor, nextCountsVisibility, createStore } from './store.js';
 
 test('nextCellColor: empty cell + active color → colored', () => {
   assert.equal(nextCellColor(null, 'blue'), 'blue');
@@ -11,14 +11,20 @@ test('nextCellColor: same color clicked again → cleared', () => {
   assert.equal(nextCellColor('blue', 'blue'), null);
 });
 
-test('nextCellColor: different color clicked → overwritten', () => {
-  assert.equal(nextCellColor('blue', 'pink'), 'pink');
-  assert.equal(nextCellColor('pink', 'blue'), 'blue');
-});
-
 test('nextCellColor: no active color selected → no-op', () => {
   assert.equal(nextCellColor('blue', null), 'blue');
   assert.equal(nextCellColor(null, null), null);
+  assert.equal(nextCellColor('both', null), 'both');
+});
+
+test('nextCellColor: only the other color, clicking own color → shared mark', () => {
+  assert.equal(nextCellColor('pink', 'blue'), 'both');
+  assert.equal(nextCellColor('blue', 'pink'), 'both');
+});
+
+test('nextCellColor: shared mark, clicking own color → leaves only the other color', () => {
+  assert.equal(nextCellColor('both', 'blue'), 'pink');
+  assert.equal(nextCellColor('both', 'pink'), 'blue');
 });
 
 test('createStore: click sets only the targeted cell', () => {
@@ -47,6 +53,46 @@ test('createStore: getTally counts cells by color across the whole grid', () => 
 test('createStore: getTally excludes uncolored cells', () => {
   const store = createStore(['A'], [1, 2]);
   assert.deepEqual(store.getTally(), {});
+});
+
+test('createStore: getTally counts a shared-mark cell once for each person', () => {
+  const store = createStore(['A', 'B'], [1, 2]);
+  store.click('A', 1, 'blue');
+  store.click('A', 1, 'pink');
+  store.click('B', 2, 'pink');
+  assert.deepEqual(store.getTally(), { blue: 1, pink: 2 });
+});
+
+test('createStore: getChoreCount counts a chore\'s cells by color, ignoring other chores', () => {
+  const store = createStore(['A', 'B'], [1, 2]);
+  store.click('A', 1, 'blue');
+  store.click('A', 2, 'blue');
+  store.click('B', 1, 'pink');
+  assert.deepEqual(store.getChoreCount('A'), { blue: 2 });
+});
+
+test('createStore: getChoreCount excludes uncolored cells', () => {
+  const store = createStore(['A'], [1, 2]);
+  assert.deepEqual(store.getChoreCount('A'), {});
+});
+
+test('createStore: getChoreCount counts a shared-mark cell once for each person', () => {
+  const store = createStore(['A'], [1]);
+  store.click('A', 1, 'blue');
+  store.click('A', 1, 'pink');
+  assert.deepEqual(store.getChoreCount('A'), { blue: 1, pink: 1 });
+});
+
+test('createStore: click builds up to and tears down a shared mark', () => {
+  const store = createStore(['洗碗'], [1]);
+  store.click('洗碗', 1, 'blue');
+  assert.equal(store.getColor('洗碗', 1), 'blue');
+  store.click('洗碗', 1, 'pink');
+  assert.equal(store.getColor('洗碗', 1), 'both');
+  store.click('洗碗', 1, 'blue');
+  assert.equal(store.getColor('洗碗', 1), 'pink');
+  store.click('洗碗', 1, 'pink');
+  assert.equal(store.getColor('洗碗', 1), null);
 });
 
 test('addChore: adds a new row with empty cells', () => {
@@ -166,4 +212,53 @@ test('renameChore: with an adapter injected, fires pushChoreRename only on succe
   assert.deepEqual(adapter.calls, []);
   store.renameChore('洗碗', '洗碗盤');
   assert.deepEqual(adapter.calls, [['pushChoreRename', ['洗碗', '洗碗盤']]]);
+});
+
+test('nextCountsVisibility: first click (no prior lastClickAt) sets count to 1, visible unchanged', () => {
+  const state = nextCountsVisibility({ count: 0, visible: false, lastClickAt: null }, 1000);
+  assert.deepEqual(state, { count: 1, visible: false, lastClickAt: 1000 });
+});
+
+test('nextCountsVisibility: consecutive clicks within 5s increment count', () => {
+  let state = nextCountsVisibility({ count: 0, visible: false, lastClickAt: null }, 1000);
+  state = nextCountsVisibility(state, 2000);
+  assert.deepEqual(state, { count: 2, visible: false, lastClickAt: 2000 });
+  state = nextCountsVisibility(state, 3000);
+  assert.deepEqual(state, { count: 3, visible: false, lastClickAt: 3000 });
+});
+
+test('nextCountsVisibility: the 5th consecutive click flips visible and resets count to 0', () => {
+  let state = { count: 0, visible: false, lastClickAt: null };
+  for (let i = 0; i < 4; i++) {
+    state = nextCountsVisibility(state, 1000 + i * 100);
+  }
+  assert.equal(state.count, 4);
+  assert.equal(state.visible, false);
+  state = nextCountsVisibility(state, 1400);
+  assert.deepEqual(state, { count: 0, visible: true, lastClickAt: 1400 });
+});
+
+test('nextCountsVisibility: a click more than 5s after the previous one restarts the count at 1', () => {
+  let state = nextCountsVisibility({ count: 0, visible: false, lastClickAt: null }, 1000);
+  state = nextCountsVisibility(state, 1500);
+  assert.equal(state.count, 2);
+  state = nextCountsVisibility(state, 1500 + 5001);
+  assert.deepEqual(state, { count: 1, visible: false, lastClickAt: 6501 });
+});
+
+test('nextCountsVisibility: two full 5-click sequences in a row toggle visible on then off again', () => {
+  let state = { count: 0, visible: false, lastClickAt: null };
+  let now = 1000;
+  for (let i = 0; i < 5; i++) {
+    state = nextCountsVisibility(state, now);
+    now += 100;
+  }
+  assert.equal(state.visible, true);
+  assert.equal(state.count, 0);
+  for (let i = 0; i < 5; i++) {
+    state = nextCountsVisibility(state, now);
+    now += 100;
+  }
+  assert.equal(state.visible, false);
+  assert.equal(state.count, 0);
 });

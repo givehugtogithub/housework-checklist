@@ -1,4 +1,4 @@
-import { createStore } from './store.js';
+import { createStore, nextCountsVisibility } from './store.js';
 import { createSupabaseClient } from './supabase-client.js';
 import { createAdapter } from './supabase-adapter.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-config.js';
@@ -22,6 +22,8 @@ let month;
 let todayYear;
 let todayMonth;
 let todayDay;
+const INITIAL_COUNTS_VISIBILITY = { count: 0, visible: false, lastClickAt: null };
+let countsVisibility = INITIAL_COUNTS_VISIBILITY;
 
 function daysInMonth(y, m) {
   return new Date(y, m, 0).getDate();
@@ -59,9 +61,29 @@ function setupColorPicker() {
     button.addEventListener('click', () => {
       activeColor = color;
       renderColorPicker();
+      if (color === 'blue') advanceCountsGesture();
     });
     container.appendChild(button);
   }
+}
+
+function setupCountsGestureReset() {
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('.color-button--blue')) return;
+    countsVisibility = { ...countsVisibility, count: 0 };
+  });
+}
+
+function advanceCountsGesture() {
+  const wasVisible = countsVisibility.visible;
+  countsVisibility = nextCountsVisibility(countsVisibility, Date.now());
+  if (countsVisibility.visible !== wasVisible) {
+    applyCountsVisibility();
+  }
+}
+
+function applyCountsVisibility() {
+  document.body.classList.toggle('counts-visible', countsVisibility.visible);
 }
 
 function renderColorPicker() {
@@ -91,6 +113,10 @@ function renderHeader() {
     if (isToday(day)) th.classList.add('today');
     headRow.appendChild(th);
   }
+  const countHeader = document.createElement('th');
+  countHeader.className = 'count-column';
+  countHeader.textContent = '次數';
+  headRow.appendChild(countHeader);
 }
 
 function scrollToToday() {
@@ -117,6 +143,8 @@ function renderChoreRow(chore) {
   th.className = 'chore-name';
   renderChoreNameCell(th, chore);
   row.appendChild(th);
+  const countCell = document.createElement('td');
+  countCell.className = 'count-column';
   for (const day of daysArray(year, month)) {
     const td = document.createElement('td');
     td.dataset.chore = chore;
@@ -124,12 +152,21 @@ function renderChoreRow(chore) {
     td.addEventListener('click', () => {
       store.click(chore, day, activeColor);
       renderCell(td, chore, day);
+      renderChoreCount(countCell, chore);
       renderTally();
     });
     row.appendChild(td);
     renderCell(td, chore, day);
   }
+  renderChoreCount(countCell, chore);
+  row.appendChild(countCell);
   return row;
+}
+
+function renderChoreCount(td, chore) {
+  const count = store.getChoreCount(chore);
+  const parts = PEOPLE.map(({ color }) => count[color] ?? 0);
+  td.textContent = parts.join('/');
 }
 
 function renderChoreNameCell(th, chore) {
@@ -249,7 +286,7 @@ function renderAddChoreRow() {
   row.appendChild(th);
 
   const td = document.createElement('td');
-  td.colSpan = daysInMonth(year, month);
+  td.colSpan = daysInMonth(year, month) + 1;
   row.appendChild(td);
 
   return row;
@@ -340,12 +377,15 @@ async function init() {
   todayYear = year;
   todayMonth = month;
   todayDay = today.getDate();
+  countsVisibility = INITIAL_COUNTS_VISIBILITY;
+  applyCountsVisibility();
 
   setupAdapter();
   const chores = await loadInitialChores();
   await buildStoreForMonth(chores);
 
   setupColorPicker();
+  setupCountsGestureReset();
   setupMonthSwitcher();
   renderAll();
   scrollToToday();

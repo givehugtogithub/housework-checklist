@@ -21,7 +21,7 @@ create table chores (
 create table cells (
   chore_id bigint not null references chores(id) on delete cascade,
   date date not null,
-  color text check (color in ('blue', 'pink')),
+  color text check (color in ('blue', 'pink', 'both')),
   primary key (chore_id, date)
 );
 
@@ -55,3 +55,18 @@ export const SUPABASE_ANON_KEY = '這裡貼 anon public key';
 ## 之後如果要重新檢查資料
 
 Supabase 專案首頁的 **Table Editor** 可以直接看 `chores`、`cells` 這兩張表目前的內容，不需要再回來跑 SQL。
+
+## 既有專案升級：允許共同標記（`both`）
+
+如果你的 Supabase 專案是在支援共同標記（[ADR-0006](adr/0006-cell-four-state-shared-mark.md)）之前建立的，`cells.color` 上的限制式還只允許 `blue`/`pink`，共同標記格會在畫面上顯示，但實際上寫不進資料庫（`pushCell` 是 fire-and-forget，寫入失敗只會在瀏覽器 console 記一筆 `console.error`，畫面不會有任何提示；見 [ADR-0004](adr/0004-supabase-sync-fire-and-forget.md)）——症狀是重新整理或換裝置後，剛才標成雙色的格子又變回單色。到 SQL Editor 貼上並執行：
+
+```sql
+alter table cells drop constraint cells_color_check;
+alter table cells add constraint cells_color_check check (color in ('blue', 'pink', 'both'));
+```
+
+如果上面的限制式名稱對不上（`cells_color_check` 是 Postgres 預設命名規則，但有些建表方式會不一樣），先跑這行查出實際名稱，換掉 `drop constraint` 後面的名字再執行：
+
+```sql
+select conname from pg_constraint where conrelid = 'cells'::regclass and contype = 'c';
+```
